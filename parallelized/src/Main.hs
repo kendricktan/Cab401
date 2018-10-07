@@ -137,54 +137,52 @@ hashcashSolverSTM stmState = do
   let globalCurrent = hcCurrent globalState
       globalChain   = hcChain globalState
       threadCurrent = threadHC threadState
-  -- If a new valid hash has been found
-  -- Update thread current with global current
-  -- then start finding the valid hash
-  when (prevHash threadCurrent /= prevHash globalCurrent)
-    (do 
-      put (threadState { threadHC = (globalCurrent { nonce = threadI threadState } ) } )
-      hashcashSolverSTM stmState
-    )
-  -- Increment nonce, get hash
-  let newCurrent     = increaseNonce numThreads threadCurrent
-      newCurrentHash = hcHash newCurrent
-  -- Check if new hash is valid
-  case validHash newCurrentHash of
-    True -> do
-      -- Get current epoch and insert it into solution
-      newEpoch <- liftIO $ round <$> getPOSIXTime
-      -- Construct new hashcash and new current hashcash
-      -- and insert into global chain
-      let solvedHashcash   = newCurrent { hcEpoch = newEpoch }
-          newGlobalCurrent = Hashcash newCurrentHash (hashcashNo newCurrent + 1) newEpoch 0
-          newGlobalChain   = insert newCurrentHash solvedHashcash globalChain
-          newGlobalState   = HashcashState newGlobalChain newGlobalCurrent
-          newThreadState   = threadState { threadHC = newGlobalCurrent }
-          epochDifference  = newEpoch - (hcEpoch globalCurrent)
-      -- Update thread state
-      put newThreadState
-      -- Update global state
-      liftIO . atomically $ writeTVar stmState newGlobalState
-      -- Analytics
-      liftIO . putStrLn $ "Found solution for hashcashNo [" <> (show . hashcashNo) solvedHashcash <> "]"
-      liftIO . putStrLn $ "    took (s): " <> (show $ epochDifference)
-      liftIO . putStrLn $ "    nonce:    " <> (show $ nonce solvedHashcash)
-      liftIO . putStrLn $ "    hash:     " <> (show $ B16.encode newCurrentHash)
-      if hashcashNo solvedHashcash < 1
-         then hashcashSolverSTM stmState
-         else do
-           liftIO $ putStrLn "quit!"
-           return ()
-    -- If invalid hash, continue hashing with
-    -- updated nonce
-    False -> do
-      -- Update nonce
-      put $ threadState { threadHC = newCurrent }
-      -- Continue hashing
-      hashcashSolverSTM stmState
+  -- Exit if solved more than 1 block
+  if (hashcashNo globalCurrent > 9) then (return ()) else do
+    -- If a new valid hash has been found
+    -- Update thread current with global current
+    -- then start finding the valid hash
+    if (prevHash threadCurrent /= prevHash globalCurrent)
+      then do 
+        put (threadState { threadHC = (globalCurrent { nonce = threadI threadState } ) } )
+        hashcashSolverSTM stmState
+      else do
+        -- Increment nonce, get hash
+        let newCurrent     = increaseNonce numThreads threadCurrent
+            newCurrentHash = hcHash newCurrent
+        -- Check if new hash is valid
+        case validHash newCurrentHash of
+          True -> do
+            -- Get current epoch and insert it into solution
+            newEpoch <- liftIO $ round <$> getPOSIXTime
+            -- Construct new hashcash and new current hashcash
+            -- and insert into global chain
+            let solvedHashcash   = newCurrent { hcEpoch = newEpoch }
+                newGlobalCurrent = Hashcash newCurrentHash (hashcashNo newCurrent + 1) newEpoch 0
+                newGlobalChain   = insert newCurrentHash solvedHashcash globalChain
+                newGlobalState   = HashcashState newGlobalChain newGlobalCurrent
+                newThreadState   = threadState { threadHC = newGlobalCurrent }
+                epochDifference  = newEpoch - (hcEpoch globalCurrent)
+            -- Update thread state
+            put newThreadState
+            -- Update global state
+            liftIO . atomically $ writeTVar stmState newGlobalState
+            -- Analytics
+            liftIO . putStrLn $ "Found solution for hashcashNo [" <> (show . hashcashNo) solvedHashcash <> "]"
+            liftIO . putStrLn $ "    took (s): " <> (show $ epochDifference)
+            liftIO . putStrLn $ "    nonce:    " <> (show $ nonce solvedHashcash)
+            liftIO . putStrLn $ "    hash:     " <> (show $ B16.encode newCurrentHash)
+            hashcashSolverSTM stmState
+          -- If invalid hash, continue hashing with
+          -- updated nonce
+          False -> do
+            -- Update nonce
+            put $ threadState { threadHC = newCurrent }
+            -- Continue hashing
+            hashcashSolverSTM stmState
 
--- | Genesis hashcash (number 0)
---
+    -- | Genesis hashcash (number 0)
+    --
 genesisChain = empty :: Map BS.ByteString Hashcash
 genesisHashcash = Hashcash "0000000000000000000000000000000000000000000000000000000000000000" 0 0 0
 genesisState = HashcashState genesisChain genesisHashcash
@@ -195,7 +193,6 @@ forkThread :: IO () -> IO (MVar ())
 forkThread proc = do
     handle <- newEmptyMVar
     _ <- forkFinally proc (\_ -> putMVar handle ())
-    putStrLn "Finally!"
     return handle
 
 -- main :: IO ()
