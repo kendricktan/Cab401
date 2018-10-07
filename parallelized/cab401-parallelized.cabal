@@ -47,8 +47,8 @@ cabal-version:       >=1.10
 
 
 executable cab401-parallelized
-  ghc-options:         -prof
-                       -fprof-auto
+  ghc-options:         -threaded
+                       -eventlog
   -- .hs or .lhs file containing the Main module.
   main-is:             Main.hs
 
@@ -66,6 +66,7 @@ executable cab401-parallelized
                      , cryptohash-sha256
                      , transformers
                      , time
+                     , stm
   
   -- Directories containing source files.
   hs-source-dirs:      src
