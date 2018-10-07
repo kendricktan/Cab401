@@ -2,7 +2,7 @@
 -- documentation, see http://haskell.org/cabal/users-guide/
 
 -- The name of the package.
-name:                cab401-original
+name:                cab401-parallelized
 
 -- The package version.  See the Haskell package versioning policy (PVP) 
 -- for standards guiding when and how versions should be incremented.
@@ -46,7 +46,7 @@ extra-source-files:  ChangeLog.md
 cabal-version:       >=1.10
 
 
-executable cab401-original
+executable cab401-parallelized
   ghc-options:         -prof
                        -fprof-auto
   -- .hs or .lhs file containing the Main module.

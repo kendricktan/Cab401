@@ -17,6 +17,10 @@ import qualified Crypto.Hash.SHA256     as SHA256
 -- | Globals
 difficulty = 5
 
+referenceHash = fst . B16.decode . C8.pack $ zeros <> effs
+  where zeros = take difficulty $ repeat '0'
+        effs  = take (64 - difficulty) $ repeat 'f'
+
 -- | Hashcash Primitives
 data Hashcash = Hashcash { prevHash   :: BS.ByteString  -- Previous Hash
                          , hashcashNo :: Integer        -- Number X in chain
@@ -36,9 +40,9 @@ data HashcashState = HashcashState { hcChain    :: Map BS.ByteString Hashcash
 type HCS a = StateT HashcashState IO a
 
 -- | Get hash of hashcash primitive
---
+-- | New Method (without base 16)
 hcHash :: Hashcash -> BS.ByteString
-hcHash h = B16.encode digest
+hcHash h = digest
   where
     i2s = (C8.pack . show)    -- Integer to String
     ctx0 = SHA256.init
@@ -50,8 +54,8 @@ hcHash h = B16.encode digest
 -- | Check hash's validity
 --
 validHash :: BS.ByteString -> Bool
-validHash = BS.isPrefixOf s
-  where s = C8.pack $ take difficulty (repeat '0')
+validHash = (>=) referenceHash
+
 
 -- | Helper function to increase nonce by <amount>
 increaseNonce :: Integer -> Hashcash -> Hashcash
@@ -84,7 +88,7 @@ hashcashSolver = do
       liftIO . putStrLn $ "Found solution for hashcashNo [" <> (show . hashcashNo) solvedHashcash <> "]"
       liftIO . putStrLn $ "    took (s): " <> (show $ epochDifference)
       liftIO . putStrLn $ "    nonce:    " <> (show $ nonce solvedHashcash)
-      liftIO . putStrLn $ "    hash:     " <> (C8.unpack currentHash)
+      liftIO . putStrLn $ "    hash:     " <> (show $ B16.encode currentHash)
       if hashcashNo current < 10
          then do
             put newState
